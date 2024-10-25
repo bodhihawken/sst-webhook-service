@@ -2,15 +2,11 @@
 /* tslint:disable */
 /* eslint-disable */
 import "sst"
-export { }
+export {}
 declare module "sst" {
   export interface Resource {
-    "UrlShortener": {
-      "type": "sst.dizzzmas.aws.UrlShortener"
-    }
     "UrlShortenerApi": {
-      "name": string
-      "type": "sst.aws.Function"
+      "type": "sst.aws.ApiGatewayV2"
       "url": string
     }
     "UrlShortenerApiAuthEnabled": {
@@ -44,4 +40,3 @@ declare module "sst" {
     }
   }
 }
-

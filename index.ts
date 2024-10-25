@@ -1,9 +1,11 @@
 // FIXME: figure out absolute imports; currently committed imports are relative to the node_modules folder
-import { type CdnArgs } from "../../../.sst/platform/src/components/aws";
-import type { FunctionArgs } from "../../../.sst/platform/src/components/aws/function";
-import type { DynamoArgs } from "../../../.sst/platform/src/components/aws/dynamo";
-import type { RouterArgs } from "../../../.sst/platform/src/components/aws/router";
+import { type CdnArgs } from "./.sst/platform/src/components/aws";
+import type { FunctionArgs } from "./.sst/platform/src/components/aws/function";
+import type { ApiGatewayV2Args } from "./.sst/platform/src/components/aws/apigatewayv2";
+import type { DynamoArgs } from "./.sst/platform/src/components/aws/dynamo";
+import type { RouterArgs } from "./.sst/platform/src/components/aws/router";
 import { type Input } from "@pulumi/pulumi";
+
 
 
 type UrlShortenerArgs = {
@@ -115,7 +117,7 @@ type UrlShortenerArgs = {
    */
   transform?: {
     redirectHandler?: FunctionArgs['transform']
-    api?: FunctionArgs['transform']
+    api?: ApiGatewayV2Args['transform']
     router?: RouterArgs['transform']
     dynamo?: DynamoArgs['transform']
   };
@@ -123,7 +125,7 @@ type UrlShortenerArgs = {
 
 
 export class UrlShortener {
-  api: sst.aws.Function
+  api: sst.aws.ApiGatewayV2
   router: sst.aws.Router
   redirectHandler: sst.aws.Function
   table: sst.aws.Dynamo
@@ -175,13 +177,16 @@ export class UrlShortener {
       transform: args.transform?.router,
     });
 
-    const api = new sst.aws.Function("UrlShortenerApi", {
-      handler: `${handlerPathPrefix}src/functions/api/index.handler`,
+    const api = new sst.aws.ApiGatewayV2("UrlShortenerApi", {
+      domain: args.domain && $output(args.domain).apply(d => (
+        typeof d === 'string' ? `api.${d}` : { ...d, name: `api.${d.name}` }
+      )),
       link: [table, redirectRouter, isAuthEnabled, areOpenApiDocsEnabled, authKey, shortIdLength, ...link],
-      url: true,
-      vpc: args.vpc,
-      transform: args.transform?.api
+      transform: args.transform?.api,
+      vpc: args.vpc && { subnets: $output(args.vpc).privateSubnets, securityGroups: $output(args.vpc).securityGroups },
     });
+    api.route("$default", `${handlerPathPrefix}src/functions/api/index.handler`)
+
 
     this.api = api
     this.router = redirectRouter
