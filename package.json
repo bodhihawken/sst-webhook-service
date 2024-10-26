@@ -7,10 +7,11 @@
     "release": "./scripts/release.ts"
   },
   "devDependencies": {
-    "@types/aws-lambda": "8.10.145",
-    "@types/bun": "latest",
+    "@changesets/cli": "^2.27.9",
     "@pulumi/aws": "^6.56.1",
-    "@pulumi/pulumi": "^3.137.0"
+    "@pulumi/pulumi": "^3.137.0",
+    "@types/aws-lambda": "8.10.145",
+    "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
