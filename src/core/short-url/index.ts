@@ -1,10 +1,9 @@
 import { z } from "zod";
 import { shortUrlEntity } from "./short-url.entity";
 import { createShortId, fn } from "../utils";
-import { Resource } from "sst/resource";
+import { Resource } from "sst";
 import { VisibleError } from "../error";
 import { DynamoDBClient, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
-
 
 
 export module ShortUrl {
@@ -116,7 +115,6 @@ export module ShortUrl {
       return res.at(0);
     },
   );
-
 
   export const fromShortIdOrFall = fn(
     fromShortId.schema,

@@ -1,11 +1,13 @@
-// FIXME: figure out absolute imports; currently committed imports are relative to the node_modules folder
-import { type CdnArgs } from "./.sst/platform/src/components/aws";
-import type { FunctionArgs } from "./.sst/platform/src/components/aws/function";
-import type { ApiGatewayV2Args } from "./.sst/platform/src/components/aws/apigatewayv2";
-import type { DynamoArgs } from "./.sst/platform/src/components/aws/dynamo";
-import type { RouterArgs } from "./.sst/platform/src/components/aws/router";
+// TODO: figure out absolute imports; currently committed imports are relative to the node_modules folder
+import { type CdnArgs } from "../../../.sst/platform/src/components/aws";
+import type { FunctionArgs } from "../../../.sst/platform/src/components/aws/function";
+import type { ApiGatewayV2Args } from "../../../.sst/platform/src/components/aws/apigatewayv2";
+import type { DynamoArgs } from "../../../.sst/platform/src/components/aws/dynamo";
+import type { RouterArgs } from "../../../.sst/platform/src/components/aws/router";
 import { type Input } from "@pulumi/pulumi";
 
+// export domain functions that can be used in the app
+export * from './src/core/short-url'
 
 
 type UrlShortenerArgs = {
@@ -93,25 +95,6 @@ type UrlShortenerArgs = {
   vpc?: FunctionArgs["vpc"]
 
   /**
-   * [Link resources](https://sst.dev/docs/linking) to your function. This will:
-   *
-   * 1. Grant the permissions needed to access the resources.
-   * 2. Allow you to access it in your function using the [SDK](/docs/reference/sdk/).
-   *
-   * @example
-   *
-   * Takes a list of components to link to the function.
-   *
-   * ```js
-   * {
-   *   link: [bucket, stripeKey]
-   * }
-   * ```
-   */
-  link?: Input<any[]>;
-
-
-  /**
    * [Transform](https://sst.dev/docs/components/#transform) how this component creates its underlying
    * resources.
    */
@@ -119,21 +102,23 @@ type UrlShortenerArgs = {
     redirectHandler?: FunctionArgs['transform']
     api?: ApiGatewayV2Args['transform']
     router?: RouterArgs['transform']
-    dynamo?: DynamoArgs['transform']
+    table?: DynamoArgs['transform']
   };
 }
-
 
 export class UrlShortener {
   api: sst.aws.ApiGatewayV2
   router: sst.aws.Router
   redirectHandler: sst.aws.Function
   table: sst.aws.Dynamo
+  /**
+   * used to link URLShortener to other components
+   */
+  link: Input<any[]>
 
   constructor(
     args: UrlShortenerArgs,
   ) {
-    const link: Input<any> = args.link || [];
     const isAuthEnabled = new sst.Secret("UrlShortenerApiAuthEnabled", args.enableApiAuth ? "true" : "false")
     const areOpenApiDocsEnabled = new sst.Secret("UrlShortenerOpenApiDocsEnabled", args.enableOpenApiDocs === false ? "false" : "true")
     const authKey = new sst.Secret("UrlShortenerApiAuthKey", "your_secret")
@@ -158,13 +143,13 @@ export class UrlShortener {
         "gsi1pk-gsi1sk-index": { hashKey: "gsi1pk", rangeKey: "gsi1sk" },
         "gsi2pk-gsi2sk-index": { hashKey: "gsi2pk", rangeKey: "gsi2sk" },
       },
-      transform: args?.transform?.dynamo,
+      transform: args?.transform?.table,
     });
 
     const redirectHandler = new sst.aws.Function("UrlShortenerRedirectHandlerFunction", {
       handler: `${handlerPathPrefix}src/functions/redirect.handler`,
       vpc: args.vpc,
-      link: [table, shortIdLength, ...link],
+      link: [table, shortIdLength],
       url: true,
       transform: args.transform?.redirectHandler
     });
@@ -181,17 +166,17 @@ export class UrlShortener {
       domain: args.domain && $output(args.domain).apply(d => (
         typeof d === 'string' ? `api.${d}` : { ...d, name: `api.${d.name}` }
       )),
-      link: [table, redirectRouter, isAuthEnabled, areOpenApiDocsEnabled, authKey, shortIdLength, ...link],
+      link: [table, redirectRouter, isAuthEnabled, areOpenApiDocsEnabled, authKey, shortIdLength],
       transform: args.transform?.api,
       vpc: args.vpc && { subnets: $output(args.vpc).privateSubnets, securityGroups: $output(args.vpc).securityGroups },
     });
     api.route("$default", `${handlerPathPrefix}src/functions/api/index.handler`)
 
-
     this.api = api
     this.router = redirectRouter
     this.table = table
     this.redirectHandler = redirectHandler
+    this.link = [table, api, redirectHandler, redirectRouter, shortIdLength, isAuthEnabled, areOpenApiDocsEnabled, authKey]
   }
 }
 

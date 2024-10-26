@@ -1,9 +1,14 @@
-import { Resource } from "sst";
 import { Entity } from "electrodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 const client = new DynamoDBClient();
-const table = Resource.UrlShortenerTable.name;
+let table: string
+try {
+  const { Resource } = await import("sst");
+  table = Resource.UrlShortenerTable.name;
+} catch {
+  table = ""
+}
 
 export const shortUrlEntity = new Entity(
   {
