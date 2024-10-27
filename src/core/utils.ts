@@ -1,7 +1,8 @@
 import { init } from "@paralleldrive/cuid2";
-import { Resource } from "sst";
 import { ZodSchema, z } from "zod";
 
+// not using Resource directly to avoid errors on fresh project setup
+// error: "Error evaluating config: It does not look like SST links are active"
 let shortIdLength: number
 try {
   const { Resource } = await import("sst");
@@ -23,6 +24,6 @@ export function fn<
 }
 
 export const createShortId = init({
-  length: parseInt(Resource.UrlShortenerShortIdLength.value),
+  length: shortIdLength,
 });
 

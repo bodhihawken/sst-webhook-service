@@ -1,9 +1,21 @@
 import { z } from "zod";
 import { shortUrlEntity } from "./short-url.entity";
 import { createShortId, fn } from "../utils";
-import { Resource } from "sst";
 import { VisibleError } from "../error";
 import { DynamoDBClient, DescribeTableCommand } from "@aws-sdk/client-dynamodb";
+
+// not using Resource directly to avoid errors on fresh project setup
+// error: "Error evaluating config: It does not look like SST links are active"
+let tableName: string
+let baseShortUrl: string
+try {
+  const { Resource } = await import("sst")
+  tableName = Resource.UrlShortenerTable.name
+  baseShortUrl = Resource.UrlShortenerRouter.url
+} catch {
+  tableName = ""
+  baseShortUrl = ""
+}
 
 
 export module ShortUrl {
@@ -28,7 +40,7 @@ export module ShortUrl {
       }
 
       const shortId = createShortId();
-      const shortUrl = `${Resource.UrlShortenerRouter.url}/${shortId}`;
+      const shortUrl = `${baseShortUrl}/${shortId}`;
       const url = {
         shortId,
         originalUrl,
@@ -189,7 +201,7 @@ export module ShortUrl {
     async () => {
       const client = new DynamoDBClient();
       const command = new DescribeTableCommand({
-        TableName: Resource.UrlShortenerTable.name
+        TableName: tableName
       })
 
       const res = await client.send(command);

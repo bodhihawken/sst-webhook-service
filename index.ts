@@ -14,27 +14,43 @@ type UrlShortenerArgs = {
   /**
    * Require bearer authentication on API requests
    *
+   * When `true`, the auth token value is inferred from the `UrlShortenerApiAuthKey` [Secret](https://sst.dev/docs/component/secret/)
+   * To change the token run `sst secret set UrlShortenerApiAuthKey "YOUR_TOKEN"`
    * @default false
    */
   enableApiAuth?: boolean
 
   /**
-   * Have swagger UI under /ui and openapi.json under /doc
+   * Have Swagger UI under /ui and openapi.json under /doc
    *
    * @default true
    */
   enableOpenApiDocs?: boolean
 
   /**
-   * desired length of the short id: short.com/{shortId}
-   * between 4 and 24
+   * Desired length of the id in shortened urls e.g. my-shortener.com/{shortId}
+   * Allowed values between 4 and 24
    *
+   * Inferred from the `UrlShortenerShortIdLength` [Secret](https://sst.dev/docs/component/secret/)
+   * To change, run `sst secret set UrlShortenerShortIdLength "YOUR_TOKEN"`
    * @default 8
    */
   shortIdLength?: number
 
   /**
-   * Set a custom domain for your short URLs.
+   * Set a custom domain for your short URLs and the API
+   *
+   * ```typescript
+   * const shortener = new UrlShortener({
+   *     domain: {
+   *       name: "share.acme.com",
+   *       dns: sst.aws.dns()
+   *     }
+   * })
+   * ```
+   * The above example will results in short URLs looking like `https://share.acme.com/etogiyeu`,
+   * and the API looking like `https://api.share.acme.com/ui`
+   *
    *
    * Automatically manages domains hosted on AWS Route 53, Cloudflare, and Vercel. For other
    * providers, you'll need to pass in a `cert` that validates domain ownership and add the
@@ -179,8 +195,3 @@ export class UrlShortener {
     this.link = [table, api, redirectHandler, redirectRouter, shortIdLength, isAuthEnabled, areOpenApiDocsEnabled, authKey]
   }
 }
-
-
-const __pulumiType = "sst:dizzzmas:aws:UrlShortener";
-// @ts-expect-error
-UrlShortener.__pulumiType = __pulumiType;

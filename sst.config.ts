@@ -11,15 +11,7 @@ export default $config({
     };
   },
   async run() {
-    const apiAuthKey = new sst.Secret(
-      "UrlShortenerApiAuthKey",
-      "your_secret",
-    );
-
-    const shortener = new UrlShortener({
-      enableApiAuth: true,
-      link: [apiAuthKey],
-    })
+    const shortener = new UrlShortener({})
 
     return {
       ulrShortenerApi: shortener.api.url,
