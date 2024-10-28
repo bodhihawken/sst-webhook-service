@@ -4,7 +4,7 @@
 
 Host your own URL shortener on AWS with [SST](https://github.com/sst/sst) and chop up those beefy links in a breeze!
 
-- :twisted_rightwards_arrows: Add as a component to your existing SST app or deploy standalone and integrate with your JS/Python/Go backend via the OpenAPI sdk
+- :twisted_rightwards_arrows: Add as a component to your existing SST app or deploy standalone and integrate with your [JS](https://github.com/Dizzzmas/sst-url-shortener-js-sdk)/[Python](https://github.com/Dizzzmas/sst-url-shortener-python-sdk)/[Go](https://github.com/Dizzzmas/sst-url-shortener-go-sdk) backend via the OpenAPI sdk
 - :lock: Opt-in API bearer auth and Swagger docs UI
 - :sparkles: URL search and expiration support
 - :house: Bring your custom domain
@@ -67,7 +67,12 @@ By default the API doesn't require authentication and has Swagger UI enabled.
 We can visit `{api}/ui` to access the swagger UI and test our API.
 
 ### Backend integration via OpenAPI SDK
-JS/Python/Go SDKs are available.
+SDKs are available for:
+
+- [JS](https://github.com/Dizzzmas/sst-url-shortener-js-sdk)
+- [Python](https://github.com/Dizzzmas/sst-url-shortener-python-sdk)
+- [Go](https://github.com/Dizzzmas/sst-url-shortener-go-sdk)
+
 Below is an example of using the JS SDK to shorten a URL:
 
 Install the SDK in your backend project
