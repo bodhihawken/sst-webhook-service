@@ -1,21 +1,19 @@
 // TODO: figure out absolute imports; currently committed imports are relative to the node_modules folder
-import { type CdnArgs } from "../../../.sst/platform/src/components/aws";
 import type { FunctionArgs } from "../../../.sst/platform/src/components/aws/function";
 import type { ApiGatewayV2Args } from "../../../.sst/platform/src/components/aws/apigatewayv2";
 import type { DynamoArgs } from "../../../.sst/platform/src/components/aws/dynamo";
-import type { RouterArgs } from "../../../.sst/platform/src/components/aws/router";
 import { type Input } from "@pulumi/pulumi";
 
 // export domain functions that can be used in the app
-export * from './src/core/short-url'
+export * from './src/core/webhook'
 
 
-type UrlShortenerArgs = {
+type WebhookServiceArgs = {
   /**
    * Require bearer authentication on API requests
    *
-   * When `true`, the auth token value is inferred from the `UrlShortenerApiAuthKey` [Secret](https://sst.dev/docs/component/secret/)
-   * To change the token run `sst secret set UrlShortenerApiAuthKey "YOUR_TOKEN"`
+   * When `true`, the auth token value is inferred from the `WebhookServiceApiAuthKey` [Secret](https://sst.dev/docs/component/secret/)
+   * To change the token run `sst secret set WebhookServiceApiAuthKey "YOUR_TOKEN"`
    * @default false
    */
   enableApiAuth?: boolean
@@ -28,29 +26,17 @@ type UrlShortenerArgs = {
   enableOpenApiDocs?: boolean
 
   /**
-   * Desired length of the id in shortened urls e.g. my-shortener.com/{shortId}
-   * Allowed values between 4 and 24
-   *
-   * Inferred from the `UrlShortenerShortIdLength` [Secret](https://sst.dev/docs/component/secret/)
-   * To change, run `sst secret set UrlShortenerShortIdLength "YOUR_TOKEN"`
-   * @default 8
-   */
-  shortIdLength?: number
-
-  /**
-   * Set a custom domain for your short URLs and the API
+   * Set a custom domain for the webhook service API
    *
    * ```typescript
-   * const shortener = new UrlShortener({
+   * const webhookService = new WebhookService({
    *     domain: {
-   *       name: "share.acme.com",
+   *       name: "webhooks.acme.com",
    *       dns: sst.aws.dns()
    *     }
    * })
    * ```
-   * The above example will results in short URLs looking like `https://share.acme.com/etogiyeu`,
-   * and the API looking like `https://api.share.acme.com/ui`
-   *
+   * The above example will result in the API being available at `https://webhooks.acme.com/ui`
    *
    * Automatically manages domains hosted on AWS Route 53, Cloudflare, and Vercel. For other
    * providers, you'll need to pass in a `cert` that validates domain ownership and add the
@@ -67,7 +53,7 @@ type UrlShortenerArgs = {
    *
    * ```js
    * {
-   *   domain: "example.com"
+   *   domain: "webhooks.example.com"
    * }
    * ```
    *
@@ -76,27 +62,20 @@ type UrlShortenerArgs = {
    * ```js
    * {
    *   domain: {
-   *     name: "example.com",
+   *     name: "webhooks.example.com",
    *     dns: sst.cloudflare.dns()
    *   }
    * }
    * ```
-   *
-   * Specify a `www.` version of the custom domain.
-   *
-   * ```js
-   * {
-   *   domain: {
-   *     name: "domain.com",
-   *     redirects: ["www.domain.com"]
-   *   }
-   * }
-   * ```
    */
-  domain?: CdnArgs["domain"]
+  domain?: string | {
+    name: string;
+    dns?: any;
+    cert?: any;
+  }
 
   /**
-   * Specify VPC configuration for the Lambda Functions used by the URL shortener.
+   * Specify VPC configuration for the Lambda Functions used by the webhook service.
    *
    * @example
    * ```js
@@ -115,37 +94,35 @@ type UrlShortenerArgs = {
    * resources.
    */
   transform?: {
-    redirectHandler?: FunctionArgs['transform']
     api?: ApiGatewayV2Args['transform']
-    router?: RouterArgs['transform']
     table?: DynamoArgs['transform']
+    queue?: sst.aws.QueueArgs['transform']
+    dlq?: sst.aws.QueueArgs['transform']
+    webhookProcessor?: FunctionArgs['transform']
   };
 }
 
-export class UrlShortener {
-  api: sst.aws.ApiGatewayV2
-  router: sst.aws.Router
-  redirectHandler: sst.aws.Function
+export class WebhookService {
+  api: sst.aws.Function
   table: sst.aws.Dynamo
+  queue: sst.aws.Queue
+  deadLetterQueue: sst.aws.Queue
+  webhookProcessor: sst.aws.Function
   /**
-   * used to link URLShortener to other components
+   * used to link WebhookService to other components
    */
   link: Input<any[]>
 
   constructor(
-    args: UrlShortenerArgs,
+    args: WebhookServiceArgs,
   ) {
-    const isAuthEnabled = new sst.Secret("UrlShortenerApiAuthEnabled", args.enableApiAuth ? "true" : "false")
-    const areOpenApiDocsEnabled = new sst.Secret("UrlShortenerOpenApiDocsEnabled", args.enableOpenApiDocs === false ? "false" : "true")
-    const authKey = new sst.Secret("UrlShortenerApiAuthKey", "your_secret")
-    if (args.shortIdLength && (args.shortIdLength < 4 || args.shortIdLength > 24)) {
-      throw new Error("shortIdLength must be between 4 and 24")
-    }
-    const shortIdLength = new sst.Secret("UrlShortenerShortIdLength", args.shortIdLength ? args.shortIdLength.toString() : "8")
-    const handlerPathPrefix = process.env.DIZZZMAS_DEV_MODE === "true" ? "" : "node_modules/@dizzzmas/sst-url-shortener/"
+    const isAuthEnabled = new sst.Secret("WebhookServiceApiAuthEnabled", args.enableApiAuth ? "true" : "false")
+    const areOpenApiDocsEnabled = new sst.Secret("WebhookServiceOpenApiDocsEnabled", args.enableOpenApiDocs === false ? "false" : "true")
+    const authKey = new sst.Secret("WebhookServiceApiAuthKey", "your_secret")
+    const handlerPathPrefix = process.env.PACKAGE_DEV_MODE === "true" ? "" : "node_modules/@dizzzmas/sst-webhook-service/"
 
     // single table design with https://electrodb.dev/
-    const table = new sst.aws.Dynamo("UrlShortenerTable", {
+    const table = new sst.aws.Dynamo("WebhookServiceTable", {
       fields: {
         pk: "string",
         sk: "string",
@@ -162,36 +139,57 @@ export class UrlShortener {
       transform: args?.transform?.table,
     });
 
-    const redirectHandler = new sst.aws.Function("UrlShortenerRedirectHandlerFunction", {
-      handler: `${handlerPathPrefix}src/functions/redirect.handler`,
-      vpc: args.vpc,
-      link: [table, shortIdLength],
-      url: true,
-      transform: args.transform?.redirectHandler
+    // Dead Letter Queue for failed webhook deliveries
+    const deadLetterQueue = new sst.aws.Queue("WebhookServiceDLQ", {
+      fifo: false,
+      visibilityTimeout: "30 seconds",
+      transform: args.transform?.dlq,
     });
 
-    const redirectRouter = new sst.aws.Router("UrlShortenerRouter", {
-      routes: {
-        "/*": redirectHandler.url,
+    // Main queue for webhook deliveries with DLQ and retry configuration
+    const queue = new sst.aws.Queue("WebhookServiceQueue", {
+      fifo: false,
+      visibilityTimeout: "30 seconds",
+      dlq: {
+        queue: deadLetterQueue.arn,
+        retry: 3, // Retry 3 times before sending to DLQ
       },
-      domain: args.domain,
-      transform: args.transform?.router,
+      transform: args.transform?.queue,
     });
 
-    const api = new sst.aws.ApiGatewayV2("UrlShortenerApi", {
-      domain: args.domain && $output(args.domain).apply(d => (
-        typeof d === 'string' ? `api.${d}` : { ...d, name: `api.${d.name}` }
-      )),
-      link: [table, redirectRouter, isAuthEnabled, areOpenApiDocsEnabled, authKey, shortIdLength],
-      transform: args.transform?.api,
-      vpc: args.vpc && { subnets: $output(args.vpc).privateSubnets, securityGroups: $output(args.vpc).securityGroups },
+    // Function to process webhook deliveries from the queue
+    const webhookProcessor = new sst.aws.Function("WebhookServiceProcessor", {
+      handler: `${handlerPathPrefix}src/functions/webhook-processor.handler`,
+      vpc: args.vpc,
+      link: [table, queue, deadLetterQueue],
+      timeout: "30 seconds",
+      transform: args.transform?.webhookProcessor,
     });
-    api.route("$default", `${handlerPathPrefix}src/functions/api/index.handler`)
+
+    // Subscribe the processor to the main queue
+    queue.subscribe(webhookProcessor.arn, {
+      batch: {
+        size: 10, // Process up to 10 messages at once
+        window: "5 seconds", // Wait up to 5 seconds to collect messages
+        partialResponses: true, // Allow partial batch failures
+      },
+    });
+
+    //create a function and use the url for the api
+    const api = new sst.aws.Function("WebhookServiceApi", {
+      handler: `${handlerPathPrefix}src/functions/api/index.handler`,
+      link: [table, queue, deadLetterQueue, isAuthEnabled, areOpenApiDocsEnabled, authKey],
+      transform: args.transform?.api,
+      url: true,
+    });
+
+
 
     this.api = api
-    this.router = redirectRouter
     this.table = table
-    this.redirectHandler = redirectHandler
-    this.link = [table, api, redirectHandler, redirectRouter, shortIdLength, isAuthEnabled, areOpenApiDocsEnabled, authKey]
+    this.queue = queue
+    this.deadLetterQueue = deadLetterQueue
+    this.webhookProcessor = webhookProcessor
+    this.link = [table, api, queue, deadLetterQueue, webhookProcessor, isAuthEnabled, areOpenApiDocsEnabled, authKey]
   }
 }

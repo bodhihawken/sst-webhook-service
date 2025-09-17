@@ -1,4 +1,4 @@
-# sst-url-shortener
+# sst-webhook-service
 
 ## Running locally
 

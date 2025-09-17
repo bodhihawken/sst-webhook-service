@@ -5,77 +5,93 @@ const client = new DynamoDBClient();
 let table: string
 try {
   const { Resource } = await import("sst");
-  table = Resource.UrlShortenerTable.name;
+  table = (Resource as any).WebhookServiceTable.name;
 } catch {
   table = ""
 }
 
-export const shortUrlEntity = new Entity(
+export const webhookEntity = new Entity(
   {
     model: {
-      entity: "shortUrl",
+      entity: "webhook",
       version: "1",
-      service: "urlShortener",
+      service: "webhookService",
     },
     attributes: {
-      shortId: {
+      webhookId: {
         type: "string",
         required: true,
       },
-      originalUrl: {
+      tenantId: {
         type: "string",
         required: true,
       },
-      shortUrl: {
+      url: {
         type: "string",
         required: true,
+      },
+      eventType: {
+        type: "string",
+        required: true, // "*" for all events or specific event type
+      },
+      secret: {
+        type: "string",
+        required: true,
+      },
+      isActive: {
+        type: "boolean",
+        required: true,
+        default: true,
       },
       createdAt: {
         type: "string",
         required: true,
         default: () => new Date().toISOString(),
       },
-      expiredAt: {
-        type: "string"
+      updatedAt: {
+        type: "string",
+        required: true,
+        default: () => new Date().toISOString(),
+        set: () => new Date().toISOString(),
       },
     },
     indexes: {
-      byShortId: {
+      byWebhookId: {
         pk: {
           field: "pk",
-          composite: ["shortId"],
+          composite: ["webhookId"],
         },
         sk: {
           field: "sk",
-          composite: ["shortId"],
+          composite: ["webhookId"],
         },
       },
-
-      byShortUrl: {
+      byTenant: {
         index: "gsi1pk-gsi1sk-index",
         pk: {
           field: "gsi1pk",
-          composite: ["shortUrl"],
+          composite: ["tenantId"],
         },
         sk: {
           field: "gsi1sk",
-          composite: ["shortUrl"],
+          composite: ["webhookId"],
         },
       },
-
-      byOriginalUrl: {
+      byTenantAndEventType: {
         index: "gsi2pk-gsi2sk-index",
         pk: {
           field: "gsi2pk",
-          composite: ["originalUrl"],
+          composite: ["tenantId", "eventType"],
         },
         sk: {
           field: "gsi2sk",
-          composite: ["originalUrl"],
+          composite: ["webhookId"],
         },
       },
     },
   },
   { client, table },
 );
+
+
 

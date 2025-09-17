@@ -1,16 +1,17 @@
-# :hocho: sst-url-shortener
+# 🔗 sst-webhook-service
 
-[![NPM version](https://img.shields.io/npm/v/@dizzzmas/sst-url-shortener.svg)](https://npmjs.org/package/@dizzzmas/sst-url-shortener) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@dizzzmas/sst-url-shortener)
+[![NPM version](https://img.shields.io/npm/v/@queuebar/sst-webhook-service.svg)](https://npmjs.org/package/@queuebar/sst-webhook-service) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/@queuebar/sst-webhook-service)
 
-Host your own URL shortener on AWS with [SST](https://github.com/sst/sst) and chop up those beefy links in a breeze!
+Host your own multi-tenant webhook service on AWS with [SST](https://github.com/sst/sst) and deliver events reliably across tenants!
+This is a very basic webhook service built in house for a few projects, PRs are welcome, this is a fork of the sst-url-shortener component.
 
-- :twisted_rightwards_arrows: Add as a component to your existing SST app or deploy standalone and integrate with your [JS](https://github.com/Dizzzmas/sst-url-shortener-js-sdk)/[Python](https://github.com/Dizzzmas/sst-url-shortener-python-sdk)/[Go](https://github.com/Dizzzmas/sst-url-shortener-go-sdk) backend via the OpenAPI sdk
-- :lock: Opt-in API bearer auth and Swagger docs UI
-- :sparkles: URL search and expiration support
-- :house: Bring your custom domain
-- :moneybag: Serverless and fully within AWS Free Tier, 0 upfront cost
-
-![diagram](./docs/diagram.png)
+- 🏢 **Multi-tenant**: Isolate webhooks by tenant ID for secure multi-tenancy
+- 🎯 **Event-driven**: Subscribe to specific events or use wildcards (*) for all events
+- 🔄 **Reliable delivery**: Automatic retries with exponential backoff
+- 📊 **Monitoring**: Track failures and redrive as needed
+- 🚀 **Serverless**: Fully within AWS Free Tier, zero upfront cost
+- 🔑 **API**: Create listeners to events and trigger events using the API or SDK
+- 📚 **OpenAPI docs**: Built-in Swagger UI for easy API exploration
 
 # Pre-requisites
 
@@ -19,39 +20,39 @@ If this is your first time using SST or deploying to AWS, make sure you have the
 # Quickstart
 
 ## Standalone SST app
-This is for cases when you can't or don't want to integrate the `URLShortener` component into your existing SST app.
-Here we will create a new SST app and use an OpenAPI SDK to integrate with our backend deployed elsewhere.
+
+This is for cases when you can't or don't want to integrate the `WebhookService` component into your existing SST app.
 
 - Create a new project:
 ```bash
-mkdir my-shortener-app && cd my-shortener-app
+mkdir my-webhook-service && cd my-webhook-service
 npm init -y
 ```
 
-- Init SST and install the `URLShortener` component:
+- Init SST and install the `WebhookService` component:
 ```bash
 npx sst@latest init
-npm install @dizzzmas/sst-url-shortener
+npm install @queuebar/sst-webhook-service
 ```
 
-- Declare the URL shortener component in `sst.config.ts`:
+- Declare the webhook service component in `sst.config.ts`:
 ```typescript
 /// <reference path="./.sst/platform/config.d.ts" />
-import { UrlShortener } from "@dizzzmas/sst-url-shortener";
+import { WebhookService } from "@queuebar/sst-webhook-service";
 
 export default $config({
   app(input) {
     return {
-      name: "url-shortener",
+      name: "webhook-service",
       removal: input?.stage === "production" ? "retain" : "remove",
       home: "aws",
     };
   },
   async run() {
-    const urlShortener = new UrlShortener({})
+    const webhookService = new WebhookService({})
 
     return {
-      api: urlShortener.api.url,
+      api: webhookService.api.url,
     }
   },
 });
@@ -66,61 +67,24 @@ Notice that our app once deployed returns a URL of an API endpoint.
 By default the API doesn't require authentication and has Swagger UI enabled.
 We can visit `{api}/ui` to access the swagger UI and test our API.
 
-### Backend integration via OpenAPI SDK
-SDKs are available for:
-
-- [JS](https://github.com/Dizzzmas/sst-url-shortener-js-sdk)
-- [Python](https://github.com/Dizzzmas/sst-url-shortener-python-sdk)
-- [Go](https://github.com/Dizzzmas/sst-url-shortener-go-sdk)
-
-Below is an example of using the JS SDK to shorten a URL:
-
-Install the SDK in your backend project
-```bash
-npm install @dizzzmas/sst-url-shortener-sdk
-```
-
-Use it:
-```typescript
-import SstURLShortener from '@dizzzmas/sst-url-shortener-sdk';
-
-const client = new SstURLShortener({
-  baseURL: "YOUR_API_URL",
-  bearerToken: undefined // auth disabled in this example
-});
-
-async function main() {
-  const newUrl = await client.urls.create({
-    originalUrl: "https://sst.dev/docs"
-  });
-  const shortUrl = newUrl.result.shortUrl;
-  console.log(shortUrl);  // the shortened URL
-
-  const urls = await client.urls.search({});
-  console.log(urls.result);
-}
-
-main();
-```
-
 ## Add as a component to an existing SST app
 
 Install the component:
 ```bash
-npm install @dizzzmas/sst-url-shortener
+npm install @queuebar/sst-webhook-service
 ```
 
 Modify `sst.config.ts` to include the component:
 ```typescript
-import { UrlShortener } from "@dizzzmas/sst-url-shortener";
+import { WebhookService } from "@queuebar/sst-webhook-service";
 
 async run() {
   // ...your existing components
-  const urlShortener = new UrlShortener({});
+  const webhookService = new WebhookService({});
 
-  // link URL shortener to another component e.g. a lambda function
+  // link webhook service to another component e.g. a lambda function
   const example = new sst.aws.Function("Example", {
-    link: [...urlShortener.link],
+    link: [...webhookService.link],
     handler: "example.handler",
     url: true,
   })
@@ -129,89 +93,360 @@ async run() {
 
 Inside the `example.ts` Lambda handler:
 ```typescript
-import { ShortUrl } from "@dizzzmas/sst-url-shortener"
+import { Webhook } from "@queuebar/sst-webhook-service"
 
 export const handler = async () => {
-  const { shortUrl } = await ShortUrl.create({
-    originalUrl: "https://sst.dev/docs"
+  // Create a webhook that listens for specific events
+  const webhook = await Webhook.create({
+    tenantId: "tenant-123",
+    url: "https://example.com/webhook",
+    eventType: ["user.created"] // or "*" for all events.
   })
-  console.log("new short url", shortUrl)
+  console.log("new webhook", webhook)
 
-  const searchResult = await ShortUrl.search({})
-  console.log("search results", searchResult)
+  // Trigger an event that will be delivered to subscribed webhooks
+  const event = await Webhook.event.create({
+    tenantId: "tenant-123",
+    eventType: "user.created",
+    payload: {
+      userId: "user-456",
+      email: "user@example.com"
+    }
+  })
 
-  return shortUrl
+// List all webhooks for a tenant
+const { webhooks: tenantWebhooks } = await Webhook.list({
+  tenantId: "tenant-123"
+})
+
+// Get a specific webhook
+const webhook = await Webhook.get({ webhookId: "webhook-123" })
+
+// Get failed events from Dead Letter Queue for a tenant
+const { failedEvents, hasMore } = await Webhook.failed({
+  tenantId: "tenant-123",
+  limit: 20,
+  deleteProcessed: false // Set to true to remove from DLQ after reading
+})
+
+// Retry specific failed events (moves them back to main queue)
+const retryResult = await Webhook.event.retryFailed({
+  eventIds: ["event-123", "event-456"] // Required: specific event IDs to retry
+})
+
+// Delete a webhook
+await Webhook.remove({ webhookId: "webhook-123" })
+```
+
+# Hono Usage
+
+For those using hono you can automatically handle all webhook related routes with the `Webhook.handler` function and
+handle auth and tenant isolation yourself.
+
+```typescript
+import { Hono } from "hono"
+import { Webhook } from "@queuebar/sst-webhook-service"
+
+const app = new Hono()
+```
+
+```typescript
+//do auth here like app.use(epicAuth())
+app.on(["POST", "GET", "PUT", "PATCH", "DELETE"], "/webhook/*", 
+  Webhook.handler({ tenantId: "tenant-123" })
+);
+```
+
+## Supported Routes
+
+The handler automatically supports the following routes:
+
+```bash
+# Webhook management
+POST   /webhook/           # Create webhook
+GET    /webhook/           # List webhooks  
+GET    /webhook/{id}       # Get specific webhook
+PUT    /webhook/{id}       # Update webhook
+DELETE /webhook/{id}       # Delete webhook
+
+# Event management
+POST   /webhook/events     # Create event
+GET    /webhook/failed     # Get failed events
+POST   /webhook/events/retry # Retry failed events
+```
+
+## Advanced Authentication
+
+Extract tenant ID from JWT or other auth middleware:
+
+```typescript
+import { jwt } from "hono/jwt"
+
+app.use("/webhook/*", jwt({ secret: "your-secret" }))
+
+app.on(["POST", "GET", "PUT", "PATCH", "DELETE"], "/webhook/*", async (c) => {
+  const payload = c.get("jwtPayload")
+  const tenantId = payload.tenantId
+  
+  return Webhook.handler({ tenantId })(c)
+})
+```
+
+## Example Usage
+
+```typescript
+// Create a webhook via the handler
+const response = await app.request('/webhook/', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    url: 'https://example.com/webhook',
+    eventType: ['user.created', 'user.updated']
+  })
+})
+
+// Trigger an event
+await app.request('/webhook/events', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    eventType: 'user.created',
+    payload: { userId: '123', email: 'user@example.com' }
+  })
+})
+```
+
+# API Usage
+
+## Core Concepts
+
+### Tenants
+All webhooks are scoped to a `tenantId`.
+
+### Webhooks
+Webhooks are HTTP endpoints that receive event notifications. Each webhook belongs to a tenant and has:
+- A unique URL to receive events
+- A secret for HMAC signature verification
+- Event type(s) it listens to (specific types or "*" for all events)
+
+### Queue-based Processing
+Events are processed asynchronously through SQS queues:
+- **Main Queue**: Processes webhook deliveries with automatic retries (3 attempts)
+- **Dead Letter Queue (DLQ)**: Stores failed events after max retries for analysis and manual retry
+- **Batch Processing**: Multiple events can be processed in parallel for better performance
+- **Failed Event Recovery**: Use `Webhook.failed()` to inspect DLQ and `Webhook.event.retryFailed()` to reprocess
+
+### Events
+Events are lightweight messages sent to the queue for processing. They contain:
+- Event type and payload
+- Tenant isolation
+- Metadata for tracing
+- No persistent storage (processed through queues only)
+
+## API Endpoints
+
+### Webhooks
+
+```bash
+# Create a webhook
+POST /api/webhooks
+{
+  "tenantId": "tenant-123",
+  "name": "My Webhook",
+  "url": "https://example.com/webhook",
+  "secret": "optional-custom-secret"
+}
+
+# List webhooks for a tenant
+GET /api/webhooks?tenantId=tenant-123
+
+# Get a specific webhook
+GET /api/webhooks/{webhookId}
+
+# Update a webhook
+PUT /api/webhooks/{webhookId}
+{
+  "name": "Updated Webhook",
+  "isActive": false
+}
+
+# Delete a webhook
+DELETE /api/webhooks/{webhookId}
+```
+
+### Listeners
+
+```bash
+# Create a listener for a specific event
+POST /api/webhooks/{webhookId}/listeners
+{
+  "eventType": "user.created"
+}
+
+# Create a listener for all events
+POST /api/webhooks/{webhookId}/listeners
+{
+  "eventType": "*"
+}
+
+# List listeners for a webhook
+GET /api/webhooks/{webhookId}/listeners
+
+# Update a listener
+PUT /api/listeners/{listenerId}
+{
+  "isActive": false
+}
+
+# Delete a listener
+DELETE /api/listeners/{listenerId}
+```
+
+### Events
+
+```bash
+# Create and trigger an event
+POST /api/events
+{
+  "tenantId": "tenant-123",
+  "eventType": "user.created",
+  "payload": {
+    "userId": "user-456",
+    "email": "user@example.com"
+  },
+  "metadata": {
+    "source": "user-service",
+    "correlationId": "req-789"
+  }
+}
+
+# List events for a tenant
+GET /api/events?tenantId=tenant-123&eventType=user.created
+
+# Get a specific event
+GET /api/events/{eventId}
+```
+
+## Webhook Payload Format
+
+When your webhook endpoint receives an event, it will include these headers:
+
+```
+Content-Type: application/json
+X-Webhook-Signature: <hmac-sha256-signature>
+X-Event-Type: user.created
+X-Event-Id: evt_123
+X-Tenant-Id: tenant-123
+```
+
+The payload will be:
+
+```json
+{
+  "eventId": "evt_123",
+  "eventType": "user.created",
+  "tenantId": "tenant-123",
+  "payload": {
+    "userId": "user-456",
+    "email": "user@example.com"
+  },
+  "metadata": {
+    "source": "user-service",
+    "correlationId": "req-789",
+    "timestamp": "2023-12-01T10:00:00Z"
+  },
+  "timestamp": "2023-12-01T10:00:00Z"
 }
 ```
-## Component configuration
 
-### Authentication
+## Signature Verification
+
+Verify webhook authenticity by checking the HMAC-SHA256 signature:
+
+```javascript
+const crypto = require('crypto');
+
+function verifySignature(payload, signature, secret) {
+  const expectedSignature = crypto
+    .createHmac('sha256', secret)
+    .update(payload)
+    .digest('hex');
+  
+  return signature === expectedSignature;
+}
+
+// In your webhook handler
+app.post('/webhook', (req, res) => {
+  const signature = req.headers['x-webhook-signature'];
+  const payload = JSON.stringify(req.body);
+  const secret = 'your-webhook-secret';
+  
+  if (!verifySignature(payload, signature, secret)) {
+    return res.status(401).send('Invalid signature');
+  }
+  
+  // Process the event
+  console.log('Received event:', req.body);
+  res.status(200).send('OK');
+});
+```
+
+# Component Configuration
+
+## Authentication
 
 API bearer authentication is disabled by default and can be enabled via setting `enableApiAuth` to `true` on the component.
+
 ```typescript
-const shortener = new UrlShortener({
+const webhookService = new WebhookService({
   enableApiAuth: true,
 })
 ```
-Make sure you specify the Bearer token expected by the API for authentication.
 
-The Bearer token can be set via `UrlShortenerApiAuthKey` SST [Secret](https://sst.dev/docs/component/secret/) and defaults to `your_secret`
+The Bearer token can be set via `WebhookServiceApiAuthKey` SST [Secret](https://sst.dev/docs/component/secret/) and defaults to `your_secret`
+
 ```bash
 # set the secret
-npx sst secret set UrlShortenerApiAuthKey "YOUR_TOKEN"
+npx sst secret set WebhookServiceApiAuthKey "YOUR_TOKEN"
 ```
 
-### Swagger UI
+## Swagger UI
 
 Swagger UI is enabled by default and can be disabled via settings `enableOpenApiDocs` to `false` on the component.
 
 ```typescript
-const shortener = new UrlShortener({
+const webhookService = new WebhookService({
   enableOpenApiDocs: false,
 })
 ```
 
-### Custom domain
+# Features
 
-You can specify a custom domain for the URL shortener and its API.
-```typescript
-const shortener = new UrlShortener({
-  domain: {
-    name: "share.acme.com",
-    dns: sst.aws.dns()
-  }
-})
-```
-The above example will results in short URLs looking like `https://share.acme.com/etogiyeu`, and the API looking like `https://api.share.acme.com/ui`
+## Retry Logic
 
-Custom domains work out of the box if you use AWS Route53, Cloudflare or Vercel as your DNS provider, but will require [manual setup](https://sst.dev/docs/custom-domains#manual-setup) for other providers.
-Please check out SST [Custom Domains](https://sst.dev/docs/custom-domains) docs for more info.
+Failed webhook deliveries are automatically retried by SQS with the following defaults:
 
-### Short id length
+- **3 retry attempts** before moving to Dead Letter Queue
+- **Exponential backoff** handled by SQS redrive policy
+- **Visibility timeout**: 30 seconds per attempt
 
-Short id is the alphanumeric identifier for your URLs generated using [cuid2](https://github.com/paralleldrive/cuid2)
-e.g. in `https://share.acme.com/etogiyeu` the short id is `etogiyeu`
-
-Its length can be anywhere from 4 to 24 characters and defaults to 8.
-```typescript
-const shortener = new UrlShortener({
-  shortIdLength: 12
-})
-```
-
-### Transform underlying resources
-
-You can fully customize the underlying resources thanks to the SST [Transform](https://sst.dev/docs/components/#transform) feature.
+To customize retry behavior, configure the SQS queue settings in your `sst.config.ts`:
 
 ```typescript
-const shortener = new UrlShortener({
+const webhookService = new WebhookService({
   transform: {
-    redirectHandler: {
-      function: {
-        timeout: 30
+    queue: (args) => {
+      // Customize main queue settings
+      args.dlq = {
+        queue: deadLetterQueue.arn,
+        retry: 5, // Increase retry attempts to 5
       }
+      args.visibilityTimeout = "60 seconds" // Increase timeout
+    },
+    dlq: (args) => {
+      // Customize dead letter queue settings
+      args.visibilityTimeout = "300 seconds" // 5 minutes for manual processing
     }
   }
 })
 ```
-

@@ -1,21 +1,28 @@
 /// <reference path="./.sst/platform/config.d.ts" />
 
-import { UrlShortener } from ".";
+import { WebhookService } from ".";
+
 
 export default $config({
   app(input) {
     return {
-      name: "sst-url-shortener",
+      name: "sst-webhook-service",
       removal: input?.stage === "production" ? "retain" : "remove",
       home: "aws"
     };
   },
   async run() {
-    const shortener = new UrlShortener({})
+    const webhookService = new WebhookService({})
 
+    //create a function and link it to the webhook service
+    const fc = new sst.aws.Function("WebhookServiceFunction", {
+      link: [webhookService],
+      handler: "index.handler",
+      url: true,
+    })
+    
     return {
-      ulrShortenerApi: shortener.api.url,
-      urlShortenerRouter: shortener.router.url,
+      webhookServiceApi: webhookService.api.url,
     }
   }
 });

@@ -4,18 +4,18 @@ import { handle } from "hono/aws-lambda";
 import { ZodError } from "zod";
 import { swaggerUI } from "@hono/swagger-ui";
 import { VisibleError } from "../../core/error";
-import { UrlApi } from "./short-url";
+import { WebhookApi } from "./webhook";
 import type { StatusCode } from "hono/utils/http-status";
 import { bearerAuth } from 'hono/bearer-auth'
 import { Resource } from "sst";
 import { HTTPException } from "hono/http-exception";
 
-const isAuthEnabled = Resource.UrlShortenerApiAuthEnabled.value === "true"
-const areOpenApiDocsEnabled = Resource.UrlShortenerOpenApiDocsEnabled.value === "true"
-const token = Resource.UrlShortenerApiAuthKey?.value
+const isAuthEnabled = Resource.WebhookServiceApiAuthEnabled.value === "true"
+const areOpenApiDocsEnabled = Resource.WebhookServiceOpenApiDocsEnabled.value === "true"
+const token = Resource.WebhookServiceApiAuthKey?.value
 
 if (isAuthEnabled && !token?.length) {
-  throw new Error("Bearer auth is enabled but no token provided. Please set UrlShortenerApiAuthKey secret.")
+  throw new Error("Bearer auth is enabled but no token provided. Please set WebhookServiceApiAuthKey secret.")
 }
 
 const app = new OpenAPIHono();
@@ -23,7 +23,7 @@ app.use(logger(), async (c, next) => {
   c.header("Cache-Control", "no-store");
   return next();
 });
-app.use("/urls/*", async (c, next) => {
+app.use("/api/*", async (c, next) => {
   if (isAuthEnabled && token?.length) {
     const bearer = bearerAuth({ token })
     return bearer(c, next)
@@ -36,7 +36,7 @@ app.openAPIRegistry.registerComponent("securitySchemes", "Bearer", {
 });
 
 
-const routes = app.route("/urls", UrlApi.route).onError((error, c) => {
+const routes = app.route("/api", WebhookApi.route).onError((error, c) => {
   if (error instanceof VisibleError) {
     let statusCode: StatusCode
     switch (error.kind) {
@@ -97,8 +97,9 @@ if (areOpenApiDocsEnabled) {
   app.doc("/doc", () => ({
     openapi: "3.0.0",
     info: {
-      title: "sst-url-shortener",
-      version: "0.0.1",
+      title: "sst-webhook-service",
+      version: "1.0.0",
+      description: "A multi-tenant webhook service for event delivery and management",
     },
   }));
   app.get("/ui", swaggerUI({ url: "/doc" }));
