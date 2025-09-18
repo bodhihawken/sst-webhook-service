@@ -7,16 +7,13 @@ import crypto from "crypto";
 import { SQSClient, SendMessageCommand, ReceiveMessageCommand, DeleteMessageCommand } from "@aws-sdk/client-sqs";
 
 // not using Resource directly to avoid errors on fresh project setup
-let tableName: string;
 let queueUrl: string;
 let dlqUrl: string;
 try {
   const { Resource } = await import("sst");
-  tableName = (Resource as any).WebhookServiceTable.name;
   queueUrl = (Resource as any).WebhookServiceQueue.url;
   dlqUrl = (Resource as any).WebhookServiceDLQ.url;
 } catch {
-  tableName = "";
   queueUrl = "";
   dlqUrl = "";
 }
@@ -83,7 +80,7 @@ export module Webhook {
     }
   );
 
-   const findById = fn(
+  export const findById = fn(
     z.object({
       webhookId: z.string(),
     }),
@@ -97,7 +94,7 @@ export module Webhook {
     }
   );
 
-   const findByIdOrFail = fn(
+  export const findByIdOrFail = fn(
     findById.schema,
     async ({ webhookId }) => {
       const webhook = await findById({ webhookId });
@@ -108,7 +105,7 @@ export module Webhook {
     }
   );
 
-   const findByTenant = fn(
+  export const findByTenant = fn(
     z.object({
       tenantId: z.string(),
       cursor: z.string().optional(),
@@ -129,7 +126,7 @@ export module Webhook {
     }
   );
 
-  const update = fn(
+  export const update = fn(
     z.object({
       webhookId: z.string(),
       url: z.string().url().max(2048).optional(),
@@ -148,13 +145,13 @@ export module Webhook {
         return webhook;
       }
 
-      const updated = await webhookEntity
+      await webhookEntity
         .update({ webhookId })
         .set(updates)
-        .go()
-        .then((r) => r.data);
+        .go();
 
-      return updated;
+      // Return the complete updated webhook
+      return await findByIdOrFail({ webhookId });
     }
   );
 
@@ -464,12 +461,13 @@ export module Webhook {
 
   }
 
-  export const handler = (options: { tenantId: string }) => {
-    return async (c: any) => {
+  export const handler = async (c: any, options: { tenantId: string }) => {
+    console.log("handler being called");
+
       // Extract the path after /webhook/
       const path = c.req.path;
       const method = c.req.method;
-      const webhookPath = path.replace(/^.*\/webhook/, "");
+      const webhookPath = path.replace(/^.*\/webhooks/, "");
       
       // Add tenantId to the request context for API functions
       c.set("tenantId", options.tenantId);
@@ -479,17 +477,30 @@ export module Webhook {
         // Parse request body for POST requests
         let body = {};
         if (method === "POST" || method === "PUT" || method === "PATCH") {
-          body = await c.req.json().catch(() => ({}));
+          try {
+            const rawBody = await c.req.json();
+            // If rawBody is a string, try to parse it as JSON
+            if (typeof rawBody === 'string') {
+              body = JSON.parse(rawBody);
+            } else {
+              body = rawBody;
+            }
+          } catch (error) {
+            console.error("Failed to parse request body:", error);
+            body = {};
+          }
         }
-        
+        console.log("body", body);
         // Parse query parameters
         const query = c.req.query();
-        
+        console.log("query", query);
+        console.log(webhookPath, method)
         // Route to appropriate webhook operation
         if (webhookPath === "" || webhookPath === "/") {
           if (method === "POST") {
             // Create webhook
-            const createData = { ...body, tenantId: options.tenantId } as any;
+            const createData = { ...body, ...query, tenantId: options.tenantId } as any;
+            console.log("createData", createData);
             const result = await create(createData);
             return c.json(result);
           } else if (method === "GET") {
@@ -563,7 +574,7 @@ export module Webhook {
         return c.json({ error: "Internal server error" }, 500);
       }
     };
-  };
+  
 }
 
 

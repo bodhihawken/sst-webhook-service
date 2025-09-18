@@ -2,12 +2,13 @@ import { Entity } from "electrodb";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 const client = new DynamoDBClient();
-let table: string
+let tableName: string;
 try {
   const { Resource } = await import("sst");
-  table = (Resource as any).WebhookServiceTable.name;
+  tableName = (Resource as any).WebhookServiceTable.name;
 } catch {
-  table = ""
+  console.warn("WebhookServiceTable name not found");
+  tableName = "";
 }
 
 export const webhookEntity = new Entity(
@@ -90,7 +91,7 @@ export const webhookEntity = new Entity(
       },
     },
   },
-  { client, table },
+  { client, table: tableName },
 );
 
 

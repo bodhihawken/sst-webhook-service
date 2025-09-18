@@ -1,8 +1,13 @@
 // TODO: figure out absolute imports; currently committed imports are relative to the node_modules folder
-import type { FunctionArgs } from "../../../.sst/platform/src/components/aws/function";
-import type { ApiGatewayV2Args } from "../../../.sst/platform/src/components/aws/apigatewayv2";
-import type { DynamoArgs } from "../../../.sst/platform/src/components/aws/dynamo";
+import type { FunctionArgs } from "../../../../.sst/platform/src/components/aws/function";
+import type { ApiGatewayV2Args } from "../../../../.sst/platform/src/components/aws/apigatewayv2";
+import type { DynamoArgs } from "../../../../.sst/platform/src/components/aws/dynamo";
 import { type Input } from "@pulumi/pulumi";
+import { type QueueArgs } from "../../../../.sst/platform/src/components/aws/queue";
+import {Queue} from "../../../../.sst/platform/src/components/aws/queue";
+import {Dynamo} from "../../../../.sst/platform/src/components/aws/dynamo";
+import {Function} from "../../../../.sst/platform/src/components/aws/function";
+import {Secret} from "../../../../.sst/platform/src/components/secret";
 
 // export domain functions that can be used in the app
 export * from './src/core/webhook'
@@ -96,18 +101,18 @@ type WebhookServiceArgs = {
   transform?: {
     api?: ApiGatewayV2Args['transform']
     table?: DynamoArgs['transform']
-    queue?: sst.aws.QueueArgs['transform']
-    dlq?: sst.aws.QueueArgs['transform']
+    queue?: QueueArgs['transform']
+    dlq?: QueueArgs['transform']
     webhookProcessor?: FunctionArgs['transform']
   };
 }
 
 export class WebhookService {
-  api: sst.aws.Function
-  table: sst.aws.Dynamo
-  queue: sst.aws.Queue
-  deadLetterQueue: sst.aws.Queue
-  webhookProcessor: sst.aws.Function
+  api: Function
+  table: Dynamo
+  queue: Queue
+  deadLetterQueue: Queue
+  webhookProcessor: Function
   /**
    * used to link WebhookService to other components
    */
@@ -116,13 +121,13 @@ export class WebhookService {
   constructor(
     args: WebhookServiceArgs,
   ) {
-    const isAuthEnabled = new sst.Secret("WebhookServiceApiAuthEnabled", args.enableApiAuth ? "true" : "false")
-    const areOpenApiDocsEnabled = new sst.Secret("WebhookServiceOpenApiDocsEnabled", args.enableOpenApiDocs === false ? "false" : "true")
-    const authKey = new sst.Secret("WebhookServiceApiAuthKey", "your_secret")
-    const handlerPathPrefix = process.env.PACKAGE_DEV_MODE === "true" ? "" : "node_modules/@dizzzmas/sst-webhook-service/"
+    const isAuthEnabled = new Secret("WebhookServiceApiAuthEnabled", args.enableApiAuth ? "true" : "false")
+    const areOpenApiDocsEnabled = new Secret("WebhookServiceOpenApiDocsEnabled", args.enableOpenApiDocs === false ? "false" : "true")
+    const authKey = new Secret("WebhookServiceApiAuthKey", "your_secret")
+    const handlerPathPrefix = process.env.PACKAGE_DEV_MODE === "true" ? "" : "node_modules/@queuebar/sst-webhook-service/"
 
     // single table design with https://electrodb.dev/
-    const table = new sst.aws.Dynamo("WebhookServiceTable", {
+    const table = new Dynamo("WebhookServiceTable", {
       fields: {
         pk: "string",
         sk: "string",
@@ -140,14 +145,14 @@ export class WebhookService {
     });
 
     // Dead Letter Queue for failed webhook deliveries
-    const deadLetterQueue = new sst.aws.Queue("WebhookServiceDLQ", {
+    const deadLetterQueue = new Queue("WebhookServiceDLQ", {
       fifo: false,
       visibilityTimeout: "30 seconds",
       transform: args.transform?.dlq,
     });
 
     // Main queue for webhook deliveries with DLQ and retry configuration
-    const queue = new sst.aws.Queue("WebhookServiceQueue", {
+    const queue = new Queue("WebhookServiceQueue", {
       fifo: false,
       visibilityTimeout: "30 seconds",
       dlq: {
@@ -158,7 +163,7 @@ export class WebhookService {
     });
 
     // Function to process webhook deliveries from the queue
-    const webhookProcessor = new sst.aws.Function("WebhookServiceProcessor", {
+    const webhookProcessor = new Function("WebhookServiceProcessor", {
       handler: `${handlerPathPrefix}src/functions/webhook-processor.handler`,
       vpc: args.vpc,
       link: [table, queue, deadLetterQueue],
@@ -170,13 +175,13 @@ export class WebhookService {
     queue.subscribe(webhookProcessor.arn, {
       batch: {
         size: 10, // Process up to 10 messages at once
-        window: "5 seconds", // Wait up to 5 seconds to collect messages
+        window: "30 seconds", // Wait up to 5 seconds to collect messages
         partialResponses: true, // Allow partial batch failures
       },
     });
 
     //create a function and use the url for the api
-    const api = new sst.aws.Function("WebhookServiceApi", {
+    const api = new Function("WebhookServiceApi", {
       handler: `${handlerPathPrefix}src/functions/api/index.handler`,
       link: [table, queue, deadLetterQueue, isAuthEnabled, areOpenApiDocsEnabled, authKey],
       transform: args.transform?.api,

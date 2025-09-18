@@ -5,36 +5,36 @@ import "sst"
 export {}
 declare module "sst" {
   export interface Resource {
-    "UrlShortenerApi": {
+    "WebhookServiceApi": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string
     }
-    "UrlShortenerApiAuthEnabled": {
+    "WebhookServiceApiAuthEnabled": {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "UrlShortenerApiAuthKey": {
+    "WebhookServiceApiAuthKey": {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "UrlShortenerOpenApiDocsEnabled": {
+    "WebhookServiceOpenApiDocsEnabled": {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "UrlShortenerRedirectHandlerFunction": {
+    "WebhookServiceRedirectHandlerFunction": {
       "name": string
       "type": "sst.aws.Function"
       "url": string
     }
-    "UrlShortenerRouter": {
+    "WebhookServiceRouter": {
       "type": "sst.aws.Router"
       "url": string
     }
-    "UrlShortenerShortIdLength": {
+    "WebhookServiceShortIdLength": {
       "type": "sst.sst.Secret"
       "value": string
     }
-    "UrlShortenerTable": {
+    "WebhookServiceTable": {
       "name": string
       "type": "sst.aws.Dynamo"
     }
